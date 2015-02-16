@@ -15,9 +15,11 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 
 	private final static Object WRITE_DONE = new Object();
 	private final static Object READ_DONE = new Object();
+
 	private final static Object LOGIN_DONE = new Object();
 	private final static Object WAIT_USER = new Object();
 	private final static Object WAIT_PASS = new Object();
+
 	private final static Object TYPE_IMAGE = new Object();
 	private final static Object TYPE_ASCII = new Object();
 
@@ -51,6 +53,10 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		close();
 	}
 
+	public void motd() {
+		write(Response.SERVICE_READY);
+	}
+
 	private void check() {
 		ByteBuffer buffer = this.reader;
 		buffer.flip();
@@ -76,10 +82,6 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		for (String cmd : list) {
 			handle(cmd);
 		}
-	}
-
-	public void motd() {
-		write(Response.SERVICE_READY);
 	}
 
 	private void handle(String command) {
@@ -113,9 +115,41 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		case "MKD":
 			mkd(cmd);
 			break;
+		case "RMD":
+			rmd(cmd);
+			break;
 		default:
 			write(Response.CMD_NOT_IMPL);
 			break;
+		}
+	}
+
+	private void rmd(String[] cmd) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else if (cmd.length != 2) {
+			write(Response.CMD_ARG_ERROR);
+		} else {
+			rmd(cmd[1]);
+		}
+	}
+
+	private void rmd(String arg) {
+		if (arg.equals("/")) {
+			write(Response.FILE_CANT_REMOVE);
+		} else {
+			rmd(getDirectory(arg));
+		}
+	}
+
+	private void rmd(File dir) {
+		if (dir.isDirectory() && dir.list().length < 1) {
+			dir.delete();
+			write(Response.FILE_ACT_OKEY);
+		} else if (dir.isDirectory()) {
+			write(Response.FILE_CANT_REMOVE);
+		} else {
+			write(Response.FILE_ACT_ERROR);
 		}
 	}
 
@@ -140,13 +174,20 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		}
 	}
 
-	private void mkd(String string) {
-		File file = new File(this.dir, string);
-		if (file.isDirectory()) {
+	private void mkd(String arg) {
+		if (arg.equals("/")) {
 			write(Response.FILE_ACT_ERROR);
-		} else if (file.getParentFile().isDirectory()) {
-			file.mkdir();
-			write("257 \"" + string + "\" created\r\n");
+		} else {
+			mkd(getDirectory(arg), arg);
+		}
+	}
+
+	private void mkd(File directory, String arg) {
+		if (directory.isDirectory()) {
+			write(Response.FILE_ACT_ERROR);
+		} else if (directory.getParentFile().isDirectory()) {
+			directory.mkdir();
+			write("257 \"" + arg + "\" created\r\n");
 		} else {
 			write(Response.FILE_ACT_ERROR);
 		}
@@ -211,6 +252,13 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		} else {
 			cwd(new File(this.dir, arg));
 		}
+	}
+
+	private File getDirectory(String arg) {
+		if (arg.startsWith("/")) {
+			return new File(this.root, arg);
+		}
+		return new File(this.dir, arg);
 	}
 
 	private void cwd(File dir) {
