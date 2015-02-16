@@ -102,7 +102,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			cwd(cmd);
 			break;
 		case "PWD":
-			write("257 \"" + this.dir.getPath() + "\" is current directory\r\n");
+			pwd(cmd);
 			break;
 		case "TYPE":
 			type(cmd);
@@ -116,6 +116,17 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		default:
 			write(Response.CMD_NOT_IMPL);
 			break;
+		}
+	}
+
+	private void pwd(String[] cmd) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else if (this.dir.compareTo(this.root) != 0) {
+			write("257 \"/\" is current directory\r\n");
+		} else {
+			String current = this.dir.getPath();
+			write("257 \"" + current.substring(this.root.getPath().length(), current.length()) + "\" is current directory\r\n");
 		}
 	}
 
@@ -135,7 +146,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			write(Response.FILE_ACT_ERROR);
 		} else if (file.getParentFile().isDirectory()) {
 			file.mkdir();
-			write("257 \"" + string + "\" created");
+			write("257 \"" + string + "\" created\r\n");
 		} else {
 			write(Response.FILE_ACT_ERROR);
 		}
@@ -192,7 +203,10 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void cwd(String arg) {
-		if (arg.startsWith("/")) {
+		if (arg.equals("/")) {
+			this.dir = this.root;
+			write(Response.FILE_ACT_OKEY);
+		} else if (arg.startsWith("/")) {
 			cwd(new File(this.root, arg));
 		} else {
 			cwd(new File(this.dir, arg));
