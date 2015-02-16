@@ -120,8 +120,9 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void mkd(String[] cmd) {
-		// TODO Auto-generated method stub
-		if (cmd.length != 2) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else if (cmd.length != 2) {
 			write(Response.CMD_ERROR);
 		} else {
 			mkd(cmd[1]);
@@ -132,11 +133,12 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		File file = new File(this.dir, string);
 		if (file.isDirectory()) {
 			write(Response.FILE_ACT_ERROR);
+		} else if (file.getParentFile().isDirectory()) {
+			file.mkdir();
+			write("257 \"" + string + "\" created");
 		} else {
-			file.mkdirs();
-			write("257 \"" + file.getPath() + "\" created\r\n");
+			write(Response.FILE_ACT_ERROR);
 		}
-
 	}
 
 	private void cdup(String[] cmd) {
@@ -177,13 +179,32 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void cwd(String[] cmd) {
-		// TODO
 		if (this.state != LOGIN_DONE) {
 			write(Response.USER_NOT_LOGGED);
 		} else if (cmd.length < 2) {
-			write(Response.CMD_ARG_ERROR);
-		} else {
+			this.dir = this.root;
 			write(Response.FILE_ACT_OKEY);
+		} else if (cmd.length < 3) {
+			cwd(cmd[1]);
+		} else {
+			write(Response.CMD_ARG_ERROR);
+		}
+	}
+
+	private void cwd(String arg) {
+		if (arg.startsWith("/")) {
+			cwd(new File(this.root, arg));
+		} else {
+			cwd(new File(this.dir, arg));
+		}
+	}
+
+	private void cwd(File dir) {
+		if (dir.isDirectory()) {
+			this.dir = dir;
+			write(Response.FILE_ACT_OKEY);
+		} else {
+			write(Response.FILE_ACT_ERROR);
 		}
 	}
 
