@@ -118,9 +118,39 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		case "RMD":
 			rmd(cmd);
 			break;
+		case "DELE":
+			dele(cmd);
+			break;
 		default:
 			write(Response.CMD_NOT_IMPL);
 			break;
+		}
+	}
+
+	private void dele(String[] cmd) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else if (cmd.length != 2) {
+			write(Response.CMD_ARG_ERROR);
+		} else {
+			dele(cmd[1]);
+		}
+	}
+
+	private void dele(String string) {
+		if (string.equals("/")) {
+			write(Response.FILE_ACT_ERROR);
+		} else {
+			dele(getRealFile(string));
+		}
+	}
+
+	private void dele(File file) {
+		if (file.isFile()) {
+			file.delete();
+			write(Response.FILE_ACT_OKEY);
+		} else {
+			write(Response.FILE_ACT_ERROR);
 		}
 	}
 
@@ -138,7 +168,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		if (arg.equals("/")) {
 			write(Response.FILE_CANT_REMOVE);
 		} else {
-			rmd(getDirectory(arg));
+			rmd(getRealFile(arg));
 		}
 	}
 
@@ -178,7 +208,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		if (arg.equals("/")) {
 			write(Response.FILE_ACT_ERROR);
 		} else {
-			mkd(getDirectory(arg), arg);
+			mkd(getRealFile(arg), arg);
 		}
 	}
 
@@ -254,7 +284,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		}
 	}
 
-	private File getDirectory(String arg) {
+	private File getRealFile(String arg) {
 		if (arg.startsWith("/")) {
 			return new File(this.root, arg);
 		}
