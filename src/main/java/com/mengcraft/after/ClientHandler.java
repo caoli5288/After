@@ -110,10 +110,33 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		case "CDUP":
 			cdup(cmd);
 			break;
+		case "MKD":
+			mkd(cmd);
+			break;
 		default:
 			write(Response.CMD_NOT_IMPL);
 			break;
 		}
+	}
+
+	private void mkd(String[] cmd) {
+		// TODO Auto-generated method stub
+		if (cmd.length != 2) {
+			write(Response.CMD_ERROR);
+		} else {
+			mkd(cmd[1]);
+		}
+	}
+
+	private void mkd(String string) {
+		File file = new File(this.dir, string);
+		if (file.isDirectory()) {
+			write(Response.FILE_ACT_ERROR);
+		} else {
+			file.mkdirs();
+			write("257 \"" + file.getPath() + "\" created\r\n");
+		}
+
 	}
 
 	private void cdup(String[] cmd) {
@@ -123,7 +146,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			this.dir = this.dir.getParentFile();
 			write(Response.FILE_ACT_OKEY);
 		} else {
-			write(Response.FIEL_ACT_ERROR);
+			write(Response.FILE_ACT_ERROR);
 		}
 	}
 

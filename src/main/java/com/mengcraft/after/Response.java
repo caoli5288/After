@@ -13,5 +13,5 @@ public class Response {
 	public final static String CMD_NOT_IMPL = "502 Command not implemented\r\n";
 	public final static String CMD_ARG_NOT_IMPL = "504 Command not implemented for that parameter\r\n";
 	public final static String USER_NOT_LOGGED = "530 Not logged in\r\n";
-	public final static String FIEL_ACT_ERROR = "550 Requested file action not okay";
+	public final static String FILE_ACT_ERROR = "550 Requested file action not okay";
 }
