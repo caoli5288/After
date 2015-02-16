@@ -23,7 +23,8 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 
 	private final LineFrameDecoder decoder = new LineFrameDecoder();
 	private final AsynchronousSocketChannel client;
-	private final ByteBuffer buffer = ByteBuffer.allocate(1024);
+	private final ByteBuffer reader = ByteBuffer.allocate(1024);
+	private final ByteBuffer writer = ByteBuffer.allocate(1024);
 	private final UserManager users = AfterServer.USERS;
 
 	private Object state = WAIT_USER;
@@ -39,36 +40,34 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	@Override
 	public void completed(Integer i, Object stats) {
 		if (stats != READ_DONE) {
-			read();
+			// DO NOTHING
 		} else {
 			check();
 		}
 	}
 
-	private void read() {
-		this.buffer.clear();
-		this.client.read(this.buffer, 300, SECONDS, READ_DONE, this);
+	@Override
+	public void failed(Throwable exc, Object attachment) {
+		close();
 	}
 
 	private void check() {
-		ByteBuffer buffer = this.buffer;
+		ByteBuffer buffer = this.reader;
 		buffer.flip();
 		int i = buffer.remaining();
-		if (i < 1) {
-			read();
-		} else {
+		if (i > 0) {
 			byte[] bs = new byte[i];
 			buffer.get(bs);
 			List<String> list = this.decoder.decode(bs);
 			check(list);
 		}
+		buffer.clear();
+		this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
 	}
 
 	private void check(List<String> list) {
 		int i = list.size();
-		if (i < 1) {
-			read();
-		} else {
+		if (i > 0) {
 			handle(list);
 		}
 	}
@@ -118,7 +117,6 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void cdup(String[] cmd) {
-		// TODO
 		if (cmd.length > 1) {
 			write(Response.CMD_ARG_NOT_IMPL);
 		} else if (this.dir.compareTo(this.root) != 0) {
@@ -197,17 +195,12 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void write(String code) {
-		ByteBuffer buffer = this.buffer;
+		ByteBuffer buffer = this.writer;
 		byte[] bytes = code.getBytes();
 		buffer.clear();
 		buffer.put(bytes);
 		buffer.flip();
 		this.client.write(buffer, 8, SECONDS, WRITE_DONE, this);
-	}
-
-	@Override
-	public void failed(Throwable exc, Object attachment) {
-		close();
 	}
 
 	private void close() {

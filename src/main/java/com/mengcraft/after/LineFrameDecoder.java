@@ -52,7 +52,7 @@ public class LineFrameDecoder {
 			byte[] bs = new byte[i];
 			buffer.get(bs);
 			this.array.add(bs);
-		} 
+		}
 		buffer.clear();
 	}
 
