@@ -1,16 +1,23 @@
 package com.mengcraft.after;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 
-public class ConnectHandler implements CompletionHandler<AsynchronousSocketChannel, AsynchronousServerSocketChannel> {
+public class ServerAcceptHandler implements CompletionHandler<AsynchronousSocketChannel, AsynchronousServerSocketChannel> {
 
 	@Override
 	public void completed(AsynchronousSocketChannel client, AsynchronousServerSocketChannel server) {
 		server.accept(server, this);
-		new ClientHandler(client).motd();
+		try {
+			AsynchronousServerSocketChannel channel = AsynchronousServerSocketChannel.open();
+			channel.bind(new InetSocketAddress(0));
+			new ClientHandler(client, channel).start();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override

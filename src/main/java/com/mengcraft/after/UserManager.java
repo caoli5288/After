@@ -14,7 +14,7 @@ public class UserManager {
 
 	public String dir(String name) {
 		// TODO Auto-generated method stub
-		return null;
+		return name;
 	}
 
 }

@@ -3,6 +3,7 @@ package com.mengcraft.after;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.List;
@@ -13,30 +14,36 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private final static TimeUnit SECONDS = TimeUnit.SECONDS;
 	private final static File DIR_ANONYMOUS = new File("dir/anonymous");
 
+	private final static Object DEFAULT = new Object();
+
 	private final static Object WRITE_DONE = new Object();
 	private final static Object READ_DONE = new Object();
 
 	private final static Object LOGIN_DONE = new Object();
-	private final static Object WAIT_USER = new Object();
 	private final static Object WAIT_PASS = new Object();
 
 	private final static Object TYPE_IMAGE = new Object();
 	private final static Object TYPE_ASCII = new Object();
 
+	private final static Object MODE_PASV = new Object();
+
 	private final LineFrameDecoder decoder = new LineFrameDecoder();
 	private final AsynchronousSocketChannel client;
+	private final AsynchronousServerSocketChannel channel;
 	private final ByteBuffer reader = ByteBuffer.allocate(1024);
 	private final ByteBuffer writer = ByteBuffer.allocate(1024);
 	private final UserManager users = AfterServer.USERS;
 
-	private Object state = WAIT_USER;
+	private Object state = DEFAULT;
 	private Object type = TYPE_ASCII;
+	private Object mode = DEFAULT;
 	private File root = DIR_ANONYMOUS;
 	private File dir = DIR_ANONYMOUS;
 	private String name = "anonymous";
 
-	public ClientHandler(AsynchronousSocketChannel client) {
+	public ClientHandler(AsynchronousSocketChannel client, AsynchronousServerSocketChannel data) {
 		this.client = client;
+		this.channel = data;
 	}
 
 	@Override
@@ -53,7 +60,9 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		close();
 	}
 
-	public void motd() {
+	public void start() {
+		this.reader.clear();
+		this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
 		write(Response.SERVICE_READY);
 	}
 
@@ -84,6 +93,9 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		}
 	}
 
+	/*
+	 * USER, QUIT, PORT, TYPE, MODE, STRU, RETR, STOR, NOOP
+	 */
 	private void handle(String command) {
 		String[] cmd = command.split(" ");
 		String request = cmd[0];
@@ -96,6 +108,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			break;
 		case "QUIT":
 			write(Response.GOOD_BYE);
+			close();
 			break;
 		case "SYST":
 			write(Response.SYS_INFO);
@@ -121,10 +134,113 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		case "DELE":
 			dele(cmd);
 			break;
+		case "PASV":
+			pasv(cmd);
+			break;
+		case "NOOP":
+			write(Response.CMD_OKEY);
+			break;
+		case "LIST":
+			list(cmd);
+			break;
+		case "STOR":
+			stor(cmd);
+			break;
+		case "RETR":
+			retr(cmd);
+			break;
 		default:
 			write(Response.CMD_NOT_IMPL);
 			break;
 		}
+	}
+
+	private void retr(String[] cmd) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else if (this.mode != MODE_PASV) {
+			write(Response.CMD_BAD_SEQUENCE);
+		} else if (cmd.length != 2) {
+			write(Response.CMD_ARG_ERROR);
+		} else {
+			retr(getRealFile(cmd[1]));
+		}
+	}
+
+	private void retr(File file) {
+		if (file.isFile()) {
+			write(Response.FILE_STATUS_OKEY);
+			this.channel.accept(this, new DataAcceptHandler(file, DataHandler.ACT_PUSH));
+		} else {
+			write(Response.FILE_ACT_NOT_TAKEN);
+		}
+	}
+
+	private void stor(String[] cmd) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else if (this.mode != MODE_PASV) {
+			write(Response.CMD_BAD_SEQUENCE);
+		} else if (cmd.length != 2) {
+			write(Response.CMD_ARG_ERROR);
+		} else {
+			write(Response.FILE_STATUS_OKEY);
+			File file = getRealFile(cmd[1]);
+			this.channel.accept(this, new DataAcceptHandler(file, DataHandler.ACT_TAKE));
+		}
+	}
+
+	private void list(String[] cmd) {
+		if (this.mode != MODE_PASV) {
+			write(Response.CMD_BAD_SEQUENCE);
+		} else if (cmd.length < 2) {
+			list(this.dir);
+		} else if (cmd[1].equals("/")) {
+			list(this.root);
+		} else {
+			File file = getRealFile(cmd[1]);
+			list(file);
+		}
+	}
+
+	private void list(File file) {
+		write(Response.FILE_STATUS_OKEY);
+		try {
+			AsynchronousSocketChannel socket = this.channel.accept().get(60, SECONDS);
+			new DataHandler(this, socket, file, DataHandler.ACT_LIST).start();
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.out.println("INSERT #1");
+			write(Response.FILE_ACT_NOT_TAKEN);
+		}
+	}
+
+	private void pasv(String[] cmd) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else {
+			pasv();
+		}
+	}
+
+	private void pasv() {
+		try {
+			String string = this.client.getLocalAddress().toString().replace('.', ',');
+			int i = string.indexOf(':');
+			String host = string.substring(1, i);
+			String data = this.channel.getLocalAddress().toString();
+			int j = data.lastIndexOf(':');
+			String port = data.substring(j + 1, data.length());
+			pasv(host, port);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void pasv(String host, String string) {
+		int port = Integer.parseInt(string);
+		this.mode = MODE_PASV;
+		write("227 Entering Passive Mode (" + host + ',' + port / 256 + ',' + port % 256 + ")\r\n");
 	}
 
 	private void dele(String[] cmd) {
@@ -166,7 +282,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 
 	private void rmd(String arg) {
 		if (arg.equals("/")) {
-			write(Response.FILE_CANT_REMOVE);
+			write(Response.FILE_ACT_NOT_TAKEN);
 		} else {
 			rmd(getRealFile(arg));
 		}
@@ -177,7 +293,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			dir.delete();
 			write(Response.FILE_ACT_OKEY);
 		} else if (dir.isDirectory()) {
-			write(Response.FILE_CANT_REMOVE);
+			write(Response.FILE_ACT_NOT_TAKEN);
 		} else {
 			write(Response.FILE_ACT_ERROR);
 		}
@@ -187,10 +303,10 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		if (this.state != LOGIN_DONE) {
 			write(Response.USER_NOT_LOGGED);
 		} else if (this.dir.compareTo(this.root) != 0) {
-			write("257 \"/\" is current directory\r\n");
-		} else {
 			String current = this.dir.getPath();
 			write("257 \"" + current.substring(this.root.getPath().length(), current.length()) + "\" is current directory\r\n");
+		} else {
+			write("257 \"/\" is current directory\r\n");
 		}
 	}
 
@@ -277,10 +393,8 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		if (arg.equals("/")) {
 			this.dir = this.root;
 			write(Response.FILE_ACT_OKEY);
-		} else if (arg.startsWith("/")) {
-			cwd(new File(this.root, arg));
 		} else {
-			cwd(new File(this.dir, arg));
+			cwd(getRealFile(arg));
 		}
 	}
 
@@ -301,11 +415,9 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void user(String[] cmd) {
-		if (this.state != WAIT_USER) {
+		if (this.state != DEFAULT) {
 			write(Response.CMD_ERROR);
 		} else if (cmd.length < 2) {
-			write(Response.CMD_ERROR);
-		} else if (this.state != WAIT_USER) {
 			write(Response.CMD_ERROR);
 		} else if (users.has(cmd[1]) < 1) {
 			this.state = WAIT_PASS;
@@ -319,18 +431,19 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			write(Response.CMD_ERROR);
 		} else if (this.state != WAIT_PASS) {
 			write(Response.CMD_ERROR);
-		} else if (users.check(this.name, cmd[1]) < 1) {
-			String pwd = users.dir(this.name);
+		} else if (this.users.check(this.name, cmd[1]) < 1) {
+			String pwd = this.users.dir(this.name);
 			this.state = LOGIN_DONE;
 			this.root = new File(pwd);
 			this.dir = this.root;
+			this.dir.mkdir();
 			write(Response.USER_LOGGED);
 		} else {
 			write(Response.USER_NOT_LOGGED);
 		}
 	}
 
-	private void write(String code) {
+	public void write(String code) {
 		ByteBuffer buffer = this.writer;
 		byte[] bytes = code.getBytes();
 		buffer.clear();
@@ -342,6 +455,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private void close() {
 		try {
 			this.client.close();
+			this.channel.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

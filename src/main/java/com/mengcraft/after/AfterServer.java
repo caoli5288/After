@@ -26,7 +26,7 @@ public class AfterServer {
 		InetSocketAddress socket = new InetSocketAddress(this.port);
 		AsynchronousServerSocketChannel server = this.server;
 		server.bind(socket);
-		server.accept(server, new ConnectHandler());
+		server.accept(server, new ServerAcceptHandler());
 		return this;
 	}
 
@@ -41,7 +41,7 @@ public class AfterServer {
 
 	public static void main(String[] args) {
 		try {
-			new AfterServer(2121).start().sync();
+			new AfterServer(21).start().sync();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
