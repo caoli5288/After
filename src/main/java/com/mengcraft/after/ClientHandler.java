@@ -57,6 +57,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 
 	@Override
 	public void failed(Throwable exc, Object attachment) {
+		exc.printStackTrace();
 		close();
 	}
 
@@ -75,9 +76,11 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			buffer.get(bs);
 			List<String> list = this.decoder.decode(bs);
 			check(list);
+			buffer.clear();
+			this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
+		} else {
+			close();
 		}
-		buffer.clear();
-		this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
 	}
 
 	private void check(List<String> list) {

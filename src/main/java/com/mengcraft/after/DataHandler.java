@@ -9,6 +9,7 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.TimeUnit;
 
 public class DataHandler implements CompletionHandler<Integer, Integer> {
 
@@ -71,7 +72,7 @@ public class DataHandler implements CompletionHandler<Integer, Integer> {
 			channel(new OpenOption[] { StandardOpenOption.WRITE, StandardOpenOption.CREATE });
 		}
 		this.buffer.clear();
-		this.socket.read(this.buffer, TAKE_READ_DONE, this);
+		this.socket.read(this.buffer, 8, TimeUnit.SECONDS, TAKE_READ_DONE, this);
 	}
 
 	private void channel(OpenOption... option) {
@@ -99,7 +100,7 @@ public class DataHandler implements CompletionHandler<Integer, Integer> {
 				this.buffer.clear();
 				this.buffer.put(bs, 0, i);
 				this.buffer.flip();
-				this.socket.write(this.buffer, LIST_WRITE_DONE, this);
+				this.socket.write(this.buffer, 8, TimeUnit.SECONDS, LIST_WRITE_DONE, this);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -170,7 +171,7 @@ public class DataHandler implements CompletionHandler<Integer, Integer> {
 		} else {
 			this.buffer.flip();
 			this.position += this.buffer.remaining();
-			this.socket.write(this.buffer, PUSH_WRITE_DONE, this);
+			this.socket.write(this.buffer, 8, TimeUnit.SECONDS, PUSH_WRITE_DONE, this);
 		}
 	}
 
