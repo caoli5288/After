@@ -22,8 +22,8 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private final static Object LOGIN_DONE = new Object();
 	private final static Object WAIT_PASS = new Object();
 
-	private final static Object TYPE_IMAGE = new Object();
-	private final static Object TYPE_ASCII = new Object();
+	// private final static Object TYPE_IMAGE = new Object();
+	// private final static Object TYPE_ASCII = new Object();
 
 	private final static Object MODE_PASV = new Object();
 
@@ -35,7 +35,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private final UserManager users = AfterServer.USERS;
 
 	private Object state = DEFAULT;
-	private Object type = TYPE_ASCII;
+	// private Object type = TYPE_ASCII;
 	private Object mode = DEFAULT;
 	private File root = DIR_ANONYMOUS;
 	private File dir = DIR_ANONYMOUS;
@@ -62,8 +62,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	public void start() {
-		this.reader.clear();
-		this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
+		read();
 		write(Response.SERVICE_READY);
 	}
 
@@ -76,10 +75,16 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			buffer.get(bs);
 			List<String> list = this.decoder.decode(bs);
 			check(list);
-			buffer.clear();
-			this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
+			read();
 		} else {
 			close();
+		}
+	}
+
+	private void read() {
+		if (this.client.isOpen()) {
+			this.reader.clear();
+			this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
 		}
 	}
 
@@ -366,11 +371,11 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private void type(String string) {
 		switch (string) {
 		case "I":
-			this.type = TYPE_IMAGE;
+			// this.type = TYPE_IMAGE;
 			write(Response.CMD_OKEY);
 			break;
 		case "A":
-			this.type = TYPE_ASCII;
+			// this.type = TYPE_ASCII;
 			write(Response.CMD_OKEY);
 			break;
 		default:

@@ -41,7 +41,7 @@ public class AfterServer {
 
 	public static void main(String[] args) {
 		try {
-			new AfterServer(2121).start().sync();
+			new AfterServer(21).start().sync();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
