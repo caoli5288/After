@@ -18,6 +18,7 @@ public class DataHandler implements CompletionHandler<Integer, Integer> {
 	public final static int ACT_LIST = 0;
 	public final static int ACT_TAKE = 1;
 	public final static int ACT_PUSH = 2;
+	public final static int ACT_APPE = 3;
 
 	public final static int PUSH_READ_DONE = 0;
 	public final static int PUSH_WRITE_DONE = 1;
@@ -54,6 +55,32 @@ public class DataHandler implements CompletionHandler<Integer, Integer> {
 		case ACT_PUSH:
 			push();
 			break;
+		case ACT_APPE:
+			appe();
+			break;
+		}
+	}
+
+	private void appe() {
+		if (this.channel != null) {
+			// DO NOTHING
+		} else {
+			OpenOption[] options = new OpenOption[] {
+					StandardOpenOption.APPEND,
+					StandardOpenOption.CREATE
+			};
+			channel(options);
+			position();
+		}
+		this.buffer.clear();
+		this.socket.read(this.buffer, 8, TimeUnit.SECONDS, TAKE_READ_DONE, this);
+	}
+
+	private void position() {
+		try {
+			this.position = this.channel.size();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 

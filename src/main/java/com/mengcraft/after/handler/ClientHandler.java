@@ -96,7 +96,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void handle(String command) {
-		String[] cmd = command.split(" ");
+		String[] cmd = command.split(" ", 2);
 		String request = cmd[0];
 		switch (request) {
 		case "USER":
@@ -147,9 +147,30 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		case "RETR":
 			retr(cmd);
 			break;
+		case "APPE":
+			appe(cmd);
+			break;
 		default:
 			write(Response.CMD_NOT_IMPL);
 			break;
+		}
+	}
+
+	private void appe(String[] cmd) {
+		if (this.state != LOGIN_DONE) {
+			write(Response.USER_NOT_LOGGED);
+		} else if (this.mode != MODE_PASV) {
+			write(Response.CMD_BAD_SEQUENCE);
+		} else if (cmd.length != 2) {
+			write(Response.CMD_ARG_ERROR);
+		} else {
+			File file = getRealFile(cmd[1]);
+			if (file.compareTo(this.root) != 0) {
+				write(Response.FILE_STATUS_OKEY);
+				this.channel.accept(this, new DataAcceptHandler(file, DataHandler.ACT_APPE));
+			} else {
+				write(Response.FILE_ACT_NOT_TAKEN);
+			}
 		}
 	}
 
