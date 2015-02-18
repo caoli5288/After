@@ -1,4 +1,4 @@
-package com.mengcraft.after;
+package com.mengcraft.after.handler;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,6 +10,8 @@ import java.nio.channels.CompletionHandler;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.TimeUnit;
+
+import com.mengcraft.after.Response;
 
 public class DataHandler implements CompletionHandler<Integer, Integer> {
 

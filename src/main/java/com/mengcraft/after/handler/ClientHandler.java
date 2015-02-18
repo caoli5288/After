@@ -1,4 +1,4 @@
-package com.mengcraft.after;
+package com.mengcraft.after.handler;
 
 import java.io.File;
 import java.io.IOException;
@@ -8,6 +8,10 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import com.mengcraft.after.LineFrameDecoder;
+import com.mengcraft.after.Response;
+import com.mengcraft.after.users.UserManager;
 
 public class ClientHandler implements CompletionHandler<Integer, Object> {
 
@@ -32,7 +36,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private final AsynchronousServerSocketChannel channel;
 	private final ByteBuffer reader = ByteBuffer.allocate(1024);
 	private final ByteBuffer writer = ByteBuffer.allocate(1024);
-	private final UserManager users = AfterServer.USERS;
+	private final UserManager users;
 
 	private Object state = DEFAULT;
 	// private Object type = TYPE_ASCII;
@@ -41,9 +45,10 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private File dir = DIR_ANONYMOUS;
 	private String name = "anonymous";
 
-	public ClientHandler(AsynchronousSocketChannel client, AsynchronousServerSocketChannel data) {
+	public ClientHandler(AsynchronousSocketChannel client, AsynchronousServerSocketChannel data, UserManager users) {
 		this.client = client;
 		this.channel = data;
+		this.users = users;
 	}
 
 	@Override
