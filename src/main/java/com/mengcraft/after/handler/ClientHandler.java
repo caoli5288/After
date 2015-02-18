@@ -2,6 +2,7 @@ package com.mengcraft.after.handler;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -9,6 +10,7 @@ import java.nio.channels.CompletionHandler;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.mengcraft.after.AfterServer;
 import com.mengcraft.after.LineFrameDecoder;
 import com.mengcraft.after.Response;
 import com.mengcraft.after.users.UserManager;
@@ -32,11 +34,13 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private final static Object MODE_PASV = new Object();
 
 	private final LineFrameDecoder decoder = new LineFrameDecoder();
-	private final AsynchronousSocketChannel client;
-	private final AsynchronousServerSocketChannel channel;
 	private final ByteBuffer reader = ByteBuffer.allocate(1024);
 	private final ByteBuffer writer = ByteBuffer.allocate(1024);
+
+	private final AsynchronousSocketChannel client;
 	private final UserManager users;
+
+	private AsynchronousServerSocketChannel channel;
 
 	private Object state = DEFAULT;
 	// private Object type = TYPE_ASCII;
@@ -45,10 +49,9 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private File dir = DIR_ANONYMOUS;
 	private String name = "anonymous";
 
-	public ClientHandler(AsynchronousSocketChannel client, AsynchronousServerSocketChannel data, UserManager users) {
+	public ClientHandler(AfterServer server, AsynchronousSocketChannel client) {
 		this.client = client;
-		this.channel = data;
-		this.users = users;
+		this.users = server.users;
 	}
 
 	@Override
@@ -56,7 +59,21 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		if (stats != READ_DONE) {
 			// DO NOTHING
 		} else {
-			check();
+			ByteBuffer buffer = this.reader;
+			buffer.flip();
+			int j = buffer.remaining();
+			if (j > 0) {
+				byte[] bs = new byte[i];
+				buffer.get(bs);
+				List<String> list = this.decoder.decode(bs);
+				// CHECK IF TCP HALF PACKET
+				if (list.size() > 0) handle(list);
+				// HANDLE A NEW INPUT STREAM
+				this.reader.clear();
+				this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
+			} else {
+				close();
+			}
 		}
 	}
 
@@ -67,37 +84,9 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	public void start() {
-		read();
+		this.reader.clear();
+		this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
 		write(Response.SERVICE_READY);
-	}
-
-	private void check() {
-		ByteBuffer buffer = this.reader;
-		buffer.flip();
-		int i = buffer.remaining();
-		if (i > 0) {
-			byte[] bs = new byte[i];
-			buffer.get(bs);
-			List<String> list = this.decoder.decode(bs);
-			check(list);
-			read();
-		} else {
-			close();
-		}
-	}
-
-	private void read() {
-		if (this.client.isOpen()) {
-			this.reader.clear();
-			this.client.read(this.reader, 300, SECONDS, READ_DONE, this);
-		}
-	}
-
-	private void check(List<String> list) {
-		int i = list.size();
-		if (i > 0) {
-			handle(list);
-		}
 	}
 
 	private void handle(List<String> list) {
@@ -106,9 +95,6 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 		}
 	}
 
-	/*
-	 * USER, QUIT, PORT, TYPE, MODE, STRU, RETR, STOR, NOOP
-	 */
 	private void handle(String command) {
 		String[] cmd = command.split(" ");
 		String request = cmd[0];
@@ -121,7 +107,6 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			break;
 		case "QUIT":
 			write(Response.GOOD_BYE);
-			close();
 			break;
 		case "SYST":
 			write(Response.SYS_INFO);
@@ -218,14 +203,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 
 	private void list(File file) {
 		write(Response.FILE_STATUS_OKEY);
-		try {
-			AsynchronousSocketChannel socket = this.channel.accept().get(60, SECONDS);
-			new DataHandler(this, socket, file, DataHandler.ACT_LIST).start();
-		} catch (Exception e) {
-			e.printStackTrace();
-			System.out.println("INSERT #1");
-			write(Response.FILE_ACT_NOT_TAKEN);
-		}
+		this.channel.accept(this, new DataAcceptHandler(file, DataHandler.ACT_LIST));
 	}
 
 	private void pasv(String[] cmd) {
@@ -237,6 +215,11 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	}
 
 	private void pasv() {
+		if (this.channel != null) {
+			// DO NOTHING
+		} else {
+			channel();
+		}
 		try {
 			String string = this.client.getLocalAddress().toString().replace('.', ',');
 			int i = string.indexOf(':');
@@ -245,6 +228,15 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			int j = data.lastIndexOf(':');
 			String port = data.substring(j + 1, data.length());
 			pasv(host, port);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void channel() {
+		try {
+			this.channel = AsynchronousServerSocketChannel.open();
+			this.channel.bind(new InetSocketAddress(0));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -261,16 +253,10 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 			write(Response.USER_NOT_LOGGED);
 		} else if (cmd.length != 2) {
 			write(Response.CMD_ARG_ERROR);
-		} else {
-			dele(cmd[1]);
-		}
-	}
-
-	private void dele(String string) {
-		if (string.equals("/")) {
+		} else if (cmd[1].equals("/")) {
 			write(Response.FILE_ACT_ERROR);
 		} else {
-			dele(getRealFile(string));
+			dele(getRealFile(cmd[1]));
 		}
 	}
 

@@ -4,6 +4,8 @@ import java.io.File;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 
+import com.mengcraft.after.Response;
+
 public class DataAcceptHandler implements CompletionHandler<AsynchronousSocketChannel, ClientHandler> {
 
 	private File file;
@@ -21,6 +23,7 @@ public class DataAcceptHandler implements CompletionHandler<AsynchronousSocketCh
 
 	@Override
 	public void failed(Throwable exc, ClientHandler attachment) {
+		attachment.write(Response.FILE_ACT_NOT_TAKEN);
 		exc.printStackTrace();
 	}
 
