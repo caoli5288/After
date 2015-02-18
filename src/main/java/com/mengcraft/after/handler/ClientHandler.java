@@ -18,15 +18,15 @@ import com.mengcraft.after.users.UserManager;
 public class ClientHandler implements CompletionHandler<Integer, Object> {
 
 	private final static TimeUnit SECONDS = TimeUnit.SECONDS;
-	private final static File DIR_ANONYMOUS = new File("dir/anonymous");
+	private final static File DIR_ANONYMOUS = new File("anonymous");
 
-	private final static Object DEFAULT = new Object();
+	private final static int DEFAULT = 0;
 
 	private final static Object WRITE_DONE = new Object();
 	private final static Object READ_DONE = new Object();
 
-	private final static Object LOGIN_DONE = new Object();
-	private final static Object WAIT_PASS = new Object();
+	private final static int WAIT_PASS = 1;
+	private final static int LOGIN_DONE = 2;
 
 	// private final static Object TYPE_IMAGE = new Object();
 	// private final static Object TYPE_ASCII = new Object();
@@ -42,7 +42,7 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 
 	private AsynchronousServerSocketChannel channel;
 
-	private Object state = DEFAULT;
+	private int state = DEFAULT;
 	// private Object type = TYPE_ASCII;
 	private Object mode = DEFAULT;
 	private File root = DIR_ANONYMOUS;
@@ -475,10 +475,18 @@ public class ClientHandler implements CompletionHandler<Integer, Object> {
 	private void close() {
 		try {
 			this.client.close();
-			this.channel.close();
+			if (this.channel != null) {
+				this.channel.close();
+				// CHOWN IF CHANNEL NOT NULL
+				String[] command = new String[] {
+						"chown", "-R", this.name, this.root.toString()
+				};
+				Runtime.getRuntime().exec(command);
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+
 	}
 
 }
